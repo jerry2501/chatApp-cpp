@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <thread>
 #include <mutex>
+#include <openssl/des.h>
 #define MAX_LEN 200
 #define NUM_COLORS 6
 
@@ -113,9 +114,21 @@ void set_name(int id, char name[])
 void shared_print(string str, bool endLine = true)
 {
 	lock_guard<mutex> guard(cout_mtx);
-	cout << str;
+	cout <<  str;
 	if (endLine)
 		cout << endl;
+}
+
+string encrypt_message(string message)
+{
+	char ciphertext[MAX_LEN];
+	DES_cblock key = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+	DES_set_odd_parity(&key);
+	DES_key_schedule schedule;
+	DES_set_key_unchecked(&key, &schedule);
+
+	DES_ncbc_encrypt((unsigned char *)message.c_str(), (unsigned char *)ciphertext, strlen(message.c_str()), &schedule, &key, DES_ENCRYPT);
+	return ciphertext;
 }
 
 // Broadcast message to all clients except the sender
@@ -175,7 +188,7 @@ int send_message(string message, int sender_id, string f_name)
 	// friend is not online
 	if (found == false)
 	{
-		string message = "Friend is not online!!";
+		string message ="Friend is not online!!";
 		char temp[MAX_LEN];
 		strcpy(temp, message.c_str());
 		for (int i = 0; i < clients.size(); i++)
@@ -188,7 +201,8 @@ int send_message(string message, int sender_id, string f_name)
 				found = true;
 				send(clients[i].socket, tmp, sizeof(tmp), 0);
 				send(clients[i].socket, &sender_id, sizeof(sender_id), 0);
-				send(clients[i].socket, temp, sizeof(temp), 0);
+				string x = encrypt_message(temp);
+				send(clients[i].socket, x.c_str(), sizeof(x), 0);
 			}
 		}
 	}
@@ -222,7 +236,8 @@ int send_message(int num, int sender_id, string f_name)
 				found = true;
 				send(clients[i].socket, tmp, sizeof(tmp), 0);
 				send(clients[i].socket, &sender_id, sizeof(sender_id), 0);
-				send(clients[i].socket, temp, sizeof(temp), 0);
+				string x = encrypt_message(temp);
+				send(clients[i].socket, x.c_str(), sizeof(x), 0);
 			}
 		}
 	}
@@ -283,6 +298,7 @@ void handle_client(int client_socket, int id)
 
 	if (found == false)
 	{
+		string n = f_name;
 		string message = "Friend is not online!!";
 		char temp[MAX_LEN];
 		strcpy(temp, message.c_str());
@@ -292,7 +308,8 @@ void handle_client(int client_socket, int id)
 			{
 				send_message("#NULL", id, clients[i].name);
 				send_message(id, id, clients[i].name);
-				send_message(temp, id, clients[i].name);
+				string tmp = encrypt_message(temp);
+				send_message(tmp, id, clients[i].name);
 				// shared_print(color(id) + welcome_message + def_col);
 			}
 		}
@@ -312,6 +329,8 @@ void handle_client(int client_socket, int id)
 			// broadcast_message(message, id);
 			send_message("#NULL", id, f_name);
 			send_message(id, id, f_name);
+
+			//encrypting the meaasge
 			send_message(message, id, f_name);
 			shared_print(color(id) + message + def_col);
 			end_connection(id);
