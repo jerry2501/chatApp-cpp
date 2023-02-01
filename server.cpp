@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <thread>
 #include <mutex>
-#include <openssl/des.h>
+#include <openssl/aes.h>
 #define MAX_LEN 200
 #define NUM_COLORS 6
 
@@ -114,7 +114,7 @@ void set_name(int id, char name[])
 void shared_print(string str, bool endLine = true)
 {
 	lock_guard<mutex> guard(cout_mtx);
-	cout <<  str;
+	cout << str;
 	if (endLine)
 		cout << endl;
 }
@@ -122,12 +122,21 @@ void shared_print(string str, bool endLine = true)
 string encrypt_message(string message)
 {
 	char ciphertext[MAX_LEN];
-	DES_cblock key = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-	DES_set_odd_parity(&key);
-	DES_key_schedule schedule;
-	DES_set_key_unchecked(&key, &schedule);
+	static const unsigned char key[] = {
+		0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+		0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+	const unsigned char ivec[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+	AES_KEY enc_key;
 
-	DES_ncbc_encrypt((unsigned char *)message.c_str(), (unsigned char *)ciphertext, strlen(message.c_str()), &schedule, &key, DES_ENCRYPT);
+	AES_set_encrypt_key(key, 128, &enc_key);
+	// AES_encrypt((unsigned char *)message.c_str(),(unsigned char *)ciphertext,&enc_key);
+	AES_cbc_encrypt((unsigned char *)message.c_str(), (unsigned char *)ciphertext, strlen(message.c_str()), &enc_key, (unsigned char *)ivec, AES_ENCRYPT);
+
 	return ciphertext;
 }
 
@@ -188,7 +197,7 @@ int send_message(string message, int sender_id, string f_name)
 	// friend is not online
 	if (found == false)
 	{
-		string message ="Friend is not online!!";
+		string message = "Friend is not online!!";
 		char temp[MAX_LEN];
 		strcpy(temp, message.c_str());
 		for (int i = 0; i < clients.size(); i++)
@@ -330,7 +339,7 @@ void handle_client(int client_socket, int id)
 			send_message("#NULL", id, f_name);
 			send_message(id, id, f_name);
 
-			//encrypting the meaasge
+			// encrypting the meaasge
 			send_message(message, id, f_name);
 			shared_print(color(id) + message + def_col);
 			end_connection(id);

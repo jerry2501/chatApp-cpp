@@ -9,7 +9,7 @@
 #include <thread>
 #include <signal.h>
 #include <mutex>
-#include <openssl/des.h>
+#include <openssl/aes.h>
 #define MAX_LEN 200
 #define NUM_COLORS 6
 
@@ -54,12 +54,16 @@ int main()
 	send(client_socket, name, sizeof(name), 0);
 
 	char f_name[MAX_LEN];
-	cout << "Enter your freind's name : ";
+	cout << "Enter your friend's name : ";
 	cin.getline(f_name, MAX_LEN);
 	send(client_socket, f_name, sizeof(f_name), 0);
 
-	DES_cblock key = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-	// cout << "Key is:" << hex << key << endl << endl;
+	// static const unsigned char key[] = {
+	// 	0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+	// 	0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+	// 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	// 	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+	// printf("key is: %X", key);
 
 	cout << colors[NUM_COLORS - 1] << "\n\t  ====== Welcome to the chat-room ======   " << endl
 		 << def_col;
@@ -114,12 +118,21 @@ void send_message(int client_socket)
 		char str[MAX_LEN], ciphertext[MAX_LEN];
 		cin.getline(str, MAX_LEN);
 
-		DES_cblock key = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-		DES_set_odd_parity(&key);
-		DES_key_schedule schedule;
-		DES_set_key_unchecked(&key, &schedule);
+		static const unsigned char key[] = {
+			0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+		unsigned char ivec[] = {
+			0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+		AES_KEY enc_key;
 
-		DES_ncbc_encrypt((unsigned char *)str, (unsigned char *)ciphertext, strlen(str), &schedule, &key, DES_ENCRYPT);
+		AES_set_encrypt_key(key, 128, &enc_key);
+		AES_cbc_encrypt((unsigned char *)str, (unsigned char *)ciphertext, strlen(str), &enc_key, (unsigned char *)ivec, AES_ENCRYPT);
+
 		send(client_socket, ciphertext, sizeof(ciphertext), 0);
 		if (strcmp(str, "#exit") == 0)
 		{
@@ -145,23 +158,41 @@ void recv_message(int client_socket)
 			continue;
 		recv(client_socket, &color_code, sizeof(color_code), 0);
 
-		DES_cblock key = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
-		DES_set_odd_parity(&key);
-		DES_key_schedule schedule;
-		DES_set_key_unchecked(&key, &schedule);
+		static const unsigned char key[] = {
+			0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+		AES_KEY dec_key;
+		unsigned char ivec[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+								0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+								0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+								0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+		AES_set_decrypt_key(key, 128, &dec_key);
 
 		recv(client_socket, str, sizeof(str), 0);
-		DES_ncbc_encrypt((unsigned char *)str, (unsigned char *)plaintext, strlen(str), &schedule, &key, DES_DECRYPT);
+		AES_cbc_encrypt((unsigned char *)str, (unsigned char *)plaintext, strlen(str), &dec_key, (unsigned char *)ivec, AES_DECRYPT);
 
 		eraseText(6);
 		if (strcmp(name, "#NULL") != 0)
 		{
-			cout << color(color_code) << name << " : " << def_col  << str << endl;
+
+			cout << color(color_code) << name << " : " << def_col << str << endl;
+			// for (int i = 0; i < strlen((char *)str); i++)
+			// {
+			//     std::cout << std::hex << (int)str[i];
+			// }
+			// cout<<endl;
 			cout << color(color_code) << name << " : " << def_col << plaintext << endl;
 		}
 		else
 		{
 			cout << color(color_code) << str << endl;
+			// for (int i = 0; i < strlen((char *)str); i++)
+			// {
+			//     std::cout << std::hex << (int)str[i];
+			// }
+
 			cout << color(color_code) << plaintext << endl;
 		}
 		cout << colors[1] << "You : " << def_col;
