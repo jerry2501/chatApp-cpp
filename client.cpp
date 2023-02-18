@@ -9,7 +9,8 @@
 #include <thread>
 #include <signal.h>
 #include <mutex>
-#include <openssl/aes.h>
+#include "rc4.h"
+
 #define MAX_LEN 200
 #define NUM_COLORS 6
 
@@ -63,7 +64,8 @@ int main()
 	// 	0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
 	// 	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 	// 	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-	// printf("key is: %X", key);
+	string key = "secret key";
+	cout<< "key is:" << key<< endl;
 
 	cout << colors[NUM_COLORS - 1] << "\n\t  ====== Welcome to the chat-room ======   " << endl
 		 << def_col;
@@ -115,25 +117,14 @@ void send_message(int client_socket)
 	while (1)
 	{
 		cout << colors[1] << "You : " << def_col;
-		char str[MAX_LEN], ciphertext[MAX_LEN];
+		char str[MAX_LEN];
 		cin.getline(str, MAX_LEN);
 
-		static const unsigned char key[] = {
-			0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-		unsigned char ivec[] = {
-			0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-		AES_KEY enc_key;
+		// RC4 Encryption
+		string key = "secret key";
+		string ciphertext = encrypt(key, str);
 
-		AES_set_encrypt_key(key, 128, &enc_key);
-		AES_cbc_encrypt((unsigned char *)str, (unsigned char *)ciphertext, strlen(str), &enc_key, (unsigned char *)ivec, AES_ENCRYPT);
-
-		send(client_socket, ciphertext, sizeof(ciphertext), 0);
+		send(client_socket, ciphertext.c_str(), sizeof(ciphertext), 0);
 		if (strcmp(str, "#exit") == 0)
 		{
 			exit_flag = true;
@@ -151,43 +142,54 @@ void recv_message(int client_socket)
 	{
 		if (exit_flag)
 			return;
-		char name[MAX_LEN], str[MAX_LEN], plaintext[MAX_LEN];
+		char name[MAX_LEN], str[MAX_LEN];
 		int color_code;
 		int bytes_received = recv(client_socket, name, sizeof(name), 0);
 		if (bytes_received <= 0)
 			continue;
 		recv(client_socket, &color_code, sizeof(color_code), 0);
-
-		static const unsigned char key[] = {
-			0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-		AES_KEY dec_key;
-		unsigned char ivec[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-								0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-								0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-								0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-		AES_set_decrypt_key(key, 128, &dec_key);
-
 		recv(client_socket, str, sizeof(str), 0);
-		AES_cbc_encrypt((unsigned char *)str, (unsigned char *)plaintext, strlen(str), &dec_key, (unsigned char *)ivec, AES_DECRYPT);
+		//string ciph(str);
+
+		// RC4 decryption
+		string key = "secret key";
+		string plaintext = decrypt(key, str, strlen(str));
+		string cipher(str);
 
 		eraseText(6);
 		if (strcmp(name, "#NULL") != 0)
 		{
 
 			cout << color(color_code) << name << " : " << def_col << str << endl;
-			// for (int i = 0; i < strlen((char *)str); i++)
+			// // Convert the ciphertext string to a vector of uint8_t
+			// vector<uint8_t> ciphertextVec(cipher.begin(), cipher.end());
+
+			// // Print the ciphertext in hexadecimal format
+			// cout << color(color_code) << name << " : " << def_col;
+			// for (int i = 0; i < ciphertextVec.size(); i++)
 			// {
-			//     std::cout << std::hex << (int)str[i];
+			// 	printf("%02x", ciphertextVec[i]);
 			// }
-			// cout<<endl;
+			// cout << endl;
+
 			cout << color(color_code) << name << " : " << def_col << plaintext << endl;
 		}
 		else
 		{
 			cout << color(color_code) << str << endl;
+			// cout << color(color_code);
+
+			// // Convert the ciphertext string to a vector of uint8_t
+			// vector<uint8_t> ciphertextVec(cipher.begin(), cipher.end());
+
+			// // Print the ciphertext in hexadecimal format
+			// for (int i = 0; i < ciphertextVec.size(); i++)
+			// {
+			// 	printf("%02x", ciphertextVec[i]);
+			// }
+			// cout << endl;
+
+
 			// for (int i = 0; i < strlen((char *)str); i++)
 			// {
 			//     std::cout << std::hex << (int)str[i];

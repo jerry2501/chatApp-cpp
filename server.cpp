@@ -8,7 +8,8 @@
 #include <unistd.h>
 #include <thread>
 #include <mutex>
-#include <openssl/aes.h>
+#include "rc4.h"
+
 #define MAX_LEN 200
 #define NUM_COLORS 6
 
@@ -121,22 +122,11 @@ void shared_print(string str, bool endLine = true)
 
 string encrypt_message(string message)
 {
-	char ciphertext[MAX_LEN];
-	static const unsigned char key[] = {
-		0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-		0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-	const unsigned char ivec[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-	AES_KEY enc_key;
+	// RC4 Encryption
+		string key = "secret key";
+		string ciphertext = encrypt(key, message);
 
-	AES_set_encrypt_key(key, 128, &enc_key);
-	// AES_encrypt((unsigned char *)message.c_str(),(unsigned char *)ciphertext,&enc_key);
-	AES_cbc_encrypt((unsigned char *)message.c_str(), (unsigned char *)ciphertext, strlen(message.c_str()), &enc_key, (unsigned char *)ivec, AES_ENCRYPT);
-
+	
 	return ciphertext;
 }
 
@@ -210,8 +200,8 @@ int send_message(string message, int sender_id, string f_name)
 				found = true;
 				send(clients[i].socket, tmp, sizeof(tmp), 0);
 				send(clients[i].socket, &sender_id, sizeof(sender_id), 0);
-				string x = encrypt_message(temp);
-				send(clients[i].socket, x.c_str(), sizeof(x), 0);
+				// string x = encrypt_message(temp);
+				send(clients[i].socket, message.c_str(), sizeof(message.c_str()), 0);
 			}
 		}
 	}
@@ -245,8 +235,8 @@ int send_message(int num, int sender_id, string f_name)
 				found = true;
 				send(clients[i].socket, tmp, sizeof(tmp), 0);
 				send(clients[i].socket, &sender_id, sizeof(sender_id), 0);
-				string x = encrypt_message(temp);
-				send(clients[i].socket, x.c_str(), sizeof(x), 0);
+				// string x = encrypt_message(temp);
+				send(clients[i].socket, message.c_str(), sizeof(message.c_str()), 0);
 			}
 		}
 	}
@@ -317,8 +307,8 @@ void handle_client(int client_socket, int id)
 			{
 				send_message("#NULL", id, clients[i].name);
 				send_message(id, id, clients[i].name);
-				string tmp = encrypt_message(temp);
-				send_message(tmp, id, clients[i].name);
+				// string tmp = encrypt_message(message);
+				send_message(temp, id, clients[i].name);
 				// shared_print(color(id) + welcome_message + def_col);
 			}
 		}
@@ -353,6 +343,15 @@ void handle_client(int client_socket, int id)
 		send_message(string(name), id, f_name);
 		first_message(id, id, f_name);
 		first_message(string(str), id, f_name);
+
+		//ack
+		string ack = "Acknowledgement received";;
+		// cout<<ack;
+		ack = encrypt_message(ack);
+		send_message("#NULL", id, name);
+		first_message(id, id, name);
+		first_message(string(ack), id, name);
+
 		shared_print(color(id) + name + " : " + def_col + str);
 	}
 }
